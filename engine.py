@@ -2,7 +2,9 @@
 
 import pickle
 import pandas as pd
+import numpy as np
 import sys
+import joblib
 
 def compute(trip_days, miles, receipts):
     with open('linear_model.pkl', 'rb') as f:
@@ -45,6 +47,19 @@ def compute(trip_days, miles, receipts):
 
     result = round(model.predict(row_encoded)[0], 2)
     return result
+
+
+
+    
+xgb_model = joblib.load('xgb_base.pkl')
+residual_model = joblib.load('residual_tree_model.pkl')
+
+def compute_tree(trip_days, miles, receipts):
+    X = np.array([[trip_days, miles, receipts]])
+    base_pred = xgb_model.predict(X) 
+    resid_corr = residual_model.predict(X)
+    final =  float(base_pred[0] + resid_corr[0])
+    return round(final, 2)
 
 if __name__ == "__main__":
     trip_days = int(sys.argv[1])
