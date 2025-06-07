@@ -1,35 +1,50 @@
 # engine.py
 
+import pickle
+import pandas as pd
 import sys
 
 def compute(trip_days, miles, receipts):
-    # Base per diem: $100/day, bonus for 5-day trips
-    per_diem = 100 * trip_days
-    if trip_days == 5:
-        per_diem += 25
+    with open('linear_model.pkl', 'rb') as f:
+        model = pickle.load(f)
 
-    # Tiered mileage reimbursement
-    if miles <= 100:
-        mileage_reimb = miles * 0.58
-    else:
-        mileage_reimb = 100 * 0.58 + (miles - 100) * 0.45
+    row = pd.DataFrame([{
+        'trip_duration_days': trip_days,
+        'miles_traveled': miles,
+        'total_receipts_amount': receipts
+    }])
 
-    # Receipts handling
-    if receipts < 50:
-        receipt_bonus = 0
-    elif receipts < 800:
-        receipt_bonus = receipts * 0.75
-    elif receipts <= 1000:
-        receipt_bonus = 600 + (receipts - 800) * 0.5
-    else:
-        receipt_bonus = 700 + (receipts - 1000) * 0.1
+    row['trip_category'] = 'short_≤7' if trip_days <= 7 else 'long_>7'
 
-    # Rounding bug bonus
-    if str(receipts).endswith("0.49") or str(receipts).endswith("0.99"):
-        receipt_bonus += 0.02
+    def receipt_category(r):
+        if r <= 500:
+            return 'short_≤500'
+        elif r <= 1250:
+            return 'medium_500-1250'
+        else:
+            return 'long_≥1250'
 
-    total = per_diem + mileage_reimb + receipt_bonus
-    return round(total, 2)
+    row['receipt_category'] = receipt_category(receipts)
+    row['miles_per_day'] = miles / trip_days
+    row['receipt_per_day'] = receipts / trip_days
+    row['triplen_receipt_per_mile'] = trip_days * (receipts / (miles if miles != 0 else 1))
+    row['spend_per_day_times_miles_per_day'] = row['receipt_per_day'] * row['miles_per_day']
+    row['rounding_flag'] = int(round(receipts % 1, 2) in [0.49, 0.99])
+
+    row = row.drop(columns=['trip_len_cat'], errors='ignore')
+
+    # One-hot encode with same columns as training
+    row_encoded = pd.get_dummies(row, drop_first=True)
+
+    # Align columns with training
+    model_features = model.get_booster().feature_names
+    for col in model_features:
+        if col not in row_encoded.columns:
+            row_encoded[col] = 0
+    row_encoded = row_encoded[model_features]
+
+    result = round(model.predict(row_encoded)[0], 2)
+    return result
 
 if __name__ == "__main__":
     trip_days = int(sys.argv[1])
