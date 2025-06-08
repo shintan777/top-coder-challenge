@@ -7,6 +7,7 @@ import sys
 import joblib
 from statsmodels.regression.quantile_regression import QuantReg
 import statsmodels.api as sm
+from xgboost import XGBRegressor
 
 class LegacyReimbursementTreeRegressorWithNewComponents:
     def fit(self, X, y=None):
@@ -156,10 +157,9 @@ def compute(trip_days, miles, receipts):
     result = round(model.predict(row_encoded)[0], 2)
     return result
 
-
-
-    
-xgb_model = joblib.load('xgb_base.pkl')
+xgb_model = XGBRegressor()
+#xgb_model = joblib.load('xgb_base.json')
+xgb_model.load_model('xgb_base.json')
 residual_model = joblib.load('residual_tree_model.pkl')
 
 def compute_tree(trip_days, miles, receipts):
@@ -173,5 +173,5 @@ if __name__ == "__main__":
     trip_days = int(sys.argv[1])
     miles = float(sys.argv[2])
     receipts = float(sys.argv[3])
-    result = compute(trip_days, miles, receipts)
+    result = compute_tree(trip_days, miles, receipts)
     print(result)
